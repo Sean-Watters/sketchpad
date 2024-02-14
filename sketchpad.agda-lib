@@ -1,0 +1,4 @@
+name: sketchpad
+depend: standard-library
+include: agda/
+flags: 
