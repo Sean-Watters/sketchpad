@@ -10,13 +10,17 @@ open import Data.Product
 open import Data.List.Membership.Propositional
 open import Data.Nat
 open import Data.Nat.Properties
-open import Data.Nat.MoreProps
-open import Data.Fin using (Fin; fromℕ<) renaming (zero to fzero; suc to fsuc)
-open import Data.Fin.MoreProps renaming (<-isPropStrictTotalOrder to FinSTO)
+open import Data.Nat.MoreProps renaming (>-isPropStrictTotalOrder to ℕ-STO)
+open import Data.Nat.Induction
+open import Data.Fin using (Fin; fromℕ; toℕ; inject₁; fromℕ<) renaming (zero to fzero; suc to fsuc)
+open import Data.Fin.Properties using (toℕ-inject₁; toℕ-cancel-<; toℕ-fromℕ<)
+open import Data.Fin.MoreProps renaming (>-isPropStrictTotalOrder to Fin-STO)
 open import Relation.Binary.Isomorphism
 open import Relation.Binary.PropositionalEquality
 
-open import Data.FreshList.InductiveInductive
+open import Induction.WellFounded
+
+open import Data.FreshList.InductiveInductive as FList
 open import Free.IdempotentCommutativeMonoid using (SortedList; insert) renaming (_∈_ to member)
 
 -- Enumerated types are those with a finite enumeration
@@ -30,7 +34,8 @@ Enumerated : Set → Set
 Enumerated X = ∃[ L ] (is-enumeration X L)
 
 -- A stronger notion of enumeration is to use a sorted list; this ensures canonicity
--- relative to a particular ordering on the type.
+-- relative to a particular ordering on the type. There's no hope of erasing the proof data,
+-- however.
 is-strong-enumeration : {X : Set} {_<_ : X → X → Set} (X-STO : IsPropStrictTotalOrder _≡_ _<_) (L : SortedList X-STO) → Set
 is-strong-enumeration {X} X-STO L = (x : X) → member X-STO x L
 
@@ -42,13 +47,56 @@ StronglyEnumerated {X} X-STO = Σ[ L ∈ SortedList X-STO ] is-strong-enumeratio
 -- Instances --
 ---------------
 
+Fin-enum : ∀ n → StronglyEnumerated (Fin-STO n)
+Fin-enum n = enumerate n , is-enum n where
+  -- enumerate-ℕ n = (the list of all nats strictly smaller than n)
+  enumerate-ℕ : ℕ → SortedList ℕ-STO
+  enumerate-ℕ-fresh : (n : ℕ) → n # enumerate-ℕ n
+  enumerate-ℕ zero = []
+  enumerate-ℕ (suc n) = cons n (enumerate-ℕ n) (enumerate-ℕ-fresh n)
+  enumerate-ℕ-fresh zero = []
+  enumerate-ℕ-fresh (suc n) = s≤s ≤-refl ∷ #-trans (IsPropStrictTotalOrder.trans ℕ-STO) (suc n) n (enumerate-ℕ n) (s≤s ≤-refl) (enumerate-ℕ-fresh n)
+
+  -- the enumeration is bounded above by n
+  enumerate-bounded : ∀ n → All (_< n) (enumerate-ℕ n)
+  enumerate-bounded zero = []
+  enumerate-bounded (suc n) = (s≤s ≤-refl) ∷ all-map m<n⇒m<1+n (enumerate-bounded n)
+
+  -- so we can inject it into a list of fins
+  inject-all : {n : ℕ} (xs : SortedList ℕ-STO) → All (_< n) xs → SortedList (Fin-STO n)
+  inject-all-fresh : ∀ {n} {x} {xs} (x#xs : x # xs) (px : x < n) (pxs : All (_< n) xs)
+                   → (fromℕ< px) # inject-all xs pxs
+  inject-all [] [] = []
+  inject-all (cons x xs x#xs) (px ∷ pxs) = cons (fromℕ< px) (inject-all xs pxs) (inject-all-fresh x#xs px pxs)
+  inject-all-fresh [] px [] = []
+  inject-all-fresh {n} (x ∷ x#xs) px (py ∷ pxs) = fromℕ<-cancel-< py px x ∷ (inject-all-fresh x#xs px pxs)
+
+  enumerate : (n : ℕ) → SortedList (Fin-STO n)
+  enumerate n = inject-all (enumerate-ℕ n) (enumerate-bounded n)
+
+  is-enum-ℕ : (n x : ℕ) → x < n → member ℕ-STO x (enumerate-ℕ n)
+  is-enum-ℕ (suc n) x (s≤s p) = {!!}
+
+  is-enum : ∀ n → is-strong-enumeration (Fin-STO n) (enumerate n)
+  is-enum (suc n) x = {!!}
+
+{-
 Fin-enum : ∀ n → StronglyEnumerated (FinSTO n)
-Fin-enum n = {!!} , {!!} where
-  enumerate : (m n : ℕ) → m ≤ n → SortedList (FinSTO n)
-  enumerate m n p = {!!}
+Fin-enum zero = [] , λ ()
+Fin-enum (suc n) = enumerate (fromℕ n) (<-wellFounded (toℕ (fromℕ n))) , {!!} where
+  enumerate : (m : Fin (suc n)) → Acc _<_ (toℕ m) → SortedList (FinSTO (suc n))
+  enumerate-fresh : (m : Fin n) (acc : Acc _<_ (toℕ (inject₁ m))) → fsuc m # enumerate (inject₁ m) acc
+
+  enumerate fzero _ = cons fzero [] []
+  enumerate (fsuc m) (acc rs) = cons (fsuc m) (enumerate (inject₁ m) (rs (toℕ (inject₁ m)) (s≤s (≤-reflexive (toℕ-inject₁ m))))) (enumerate-fresh m (rs (toℕ (inject₁ m)) (s≤s (≤-reflexive (toℕ-inject₁ m)))))
+
+  enumerate-fresh fzero (acc rs) = s≤s z≤n ∷ []
+  enumerate-fresh (fsuc m) (acc rs) = (s≤s (s≤s {!!})) ∷ {!enumerate-fresh  !}
+
 
   is-enum : {! is-strong-enumeration (FinSTO n) (enumerate n) !}
   is-enum = {!!}
+-}
 
 {-
 -- Another notion of finiteness is when a type is isomorphic to Fin

@@ -7,6 +7,7 @@ open import Relation.Binary.Structures
 open import Relation.Nullary
 open import Data.Empty
 open import Data.Sum
+open import Function
 
 module Algebra.Structures.Propositional where
 
@@ -21,6 +22,17 @@ record IsPropStrictTotalOrder
     ≈-prop : ∀ {x y} → Irrelevant (x ≈ y)
     <-prop : ∀ {x y} → Irrelevant (x < y)
   open IsStrictTotalOrder isSTO public
+
+  flip-PSTO : IsPropStrictTotalOrder _≈_ (flip _<_)
+  IsStrictTotalOrder.isEquivalence (isSTO flip-PSTO) = isEquivalence
+  IsStrictTotalOrder.trans (isSTO flip-PSTO) = flip trans
+  IsStrictTotalOrder.compare (isSTO flip-PSTO) x y with compare x y
+  ... | tri< a ¬b ¬c = tri> ¬c ¬b a
+  ... | tri≈ ¬a b ¬c = tri≈ ¬c b ¬a
+  ... | tri> ¬a ¬b c = tri< c ¬b ¬a
+  ≈-prop flip-PSTO = ≈-prop 
+  <-prop flip-PSTO = <-prop
+
 
 record IsPropDecTotalOrder
   { S : Set }

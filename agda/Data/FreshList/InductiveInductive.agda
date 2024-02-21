@@ -4,7 +4,7 @@ open import Axiom.UniquenessOfIdentityProofs
 open import Axiom.UniquenessOfIdentityProofs.Properties
 open import Level hiding (zero; suc)
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.Product
+open import Data.Product hiding (map)
 open import Data.Empty
 open import Function
 open import Relation.Nullary
@@ -33,6 +33,25 @@ data All {n m o} {A : Set n} {R : A → A → Set m} (P : A → Set o) : (xs : L
 data Any {n m o} {A : Set n} {R : A → A → Set m} (P : A → Set o) : (xs : List# R) → Set (n ⊔ m ⊔ o) where
   here  : {x : A} {xs : List# R} {x#xs : x # xs} → P x      → Any P (cons x xs x#xs)
   there : {x : A} {xs : List# R} {x#xs : x # xs} → Any P xs → Any P (cons x xs x#xs)
+
+
+map : ∀ {n m n' m' : Level} {X : Set n} {Y : Set n'} {R : X → X → Set m} {S : Y → Y → Set m'}
+    → (f : X → Y)
+    → (f-mono : ∀ {a b} → R a b → S (f a) (f b))
+    → List# R
+    → List# S
+map-fresh : ∀ {n m n' m' : Level} {X : Set n} {Y : Set n'} {R : X → X → Set m} {S : Y → Y → Set m'}
+          → (f : X → Y)
+          → (f-mono : ∀ {a b} → R a b → S (f a) (f b))
+          → {x : X} {xs : List# R}
+          → x # xs
+          → _#_ {R = S} (f x) (map f f-mono xs)
+
+map f f-mono [] = []
+map f f-mono (cons x xs x#xs) = cons (f x) (map f f-mono xs) (map-fresh f f-mono x#xs)
+
+map-fresh f f-mono [] = []
+map-fresh f f-mono (px ∷ pxs) = (f-mono px) ∷ map-fresh f f-mono pxs
 
 -- Fix an implicit R so we don't need to keep writing it.
 -- Only put definitions in here if the R really can be inferred
