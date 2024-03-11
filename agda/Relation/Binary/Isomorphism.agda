@@ -1,3 +1,4 @@
+{-# OPTIONS --safe --cubical-compatible #-}
 module Relation.Binary.Isomorphism where
 
 open import Function
