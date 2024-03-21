@@ -1,4 +1,4 @@
-{-# OPTIONS --safe --cubical-compatible --guarded #-}
+{-# OPTIONS --safe --cubical-compatible --guardedness #-}
 
 module Data.Container.Indexed.Fam.Base where
 
@@ -24,9 +24,30 @@ open Container
 ⟦_⟧ : {I J : Set} → Container I J → (I → Set) → (J → Set)
 ⟦ S ◃ P ⟧ F j = Σ[ s ∈ S j ] (∀ {i} → P s i → F i)
 
--- Indexed W-types for them
+-- Indexed W-types for them.
 data W {J : Set} (C : Container J J) : J → Set where
   sup : ∀ {j} → ⟦ C ⟧ (W C) j → W C j
+
+
+-- Indexed M-types.
+-- Following the standard library, the extension of the container is
+-- inlined into the coninductive definition.
+-- Niu & Spivak's "Positions and Angles" terminology works a bit better
+-- in this presentation than AAG's "Shapes and Positions";
+-- In this presentation, we think of our "shapes" as a set of ways to
+-- root the tree, and our positions as "directions" in which subtrees
+-- extend.
+-- Honestly, this way of thinking was more instructive to me than the
+-- traditional setup of ⟦_⟧ and W above.
+record M {J : Set} (C : Container J J) : Set where
+  coinductive
+  constructor inf
+  field
+    root   : (j : J) → Shape C j -- Choose a shape to root the tree with...
+    branch : ∀ {j} → Position C (root j) j → M C -- Then for every position, we have a further subtree
+
+-- TODO: this is wrong, we really do need *indexed* M-types. See CoVec for an
+-- example of how to do indexed codata
 
 
 -----------------
@@ -37,12 +58,12 @@ private
   variable
     I J : Set
 
--- Identity Container
+-- The Identity Container.
 
 ⟨id⟩ : Container J J
 ⟨id⟩ = (λ _ → ⊤) ◃ λ _ _ → ⊥
 
--- Constant Container.
+-- The Constant Container.
 
 ⟨const⟩ : (J → Set) → Container I J
 ⟨const⟩ P = P ◃ λ _ _ → ⊥
@@ -78,9 +99,9 @@ _⟨+⟩_ : Container I J → Container I J → Container I J
               ◃ (λ { (x , s) i → Position (P x) s i })
 
 
---------------------------
--- Fixpoint Combinators --
---------------------------
+--------------------
+-- Least Fixpoint --
+--------------------
 
 data Path {I J : Set}
           (S : J → Set)
@@ -107,9 +128,24 @@ data Path {I J : Set}
 -- Greatest Fixpoint --
 -----------------------
 
--- M types
 
--- CoPaths
+record CoPath {I J : Set}
+              (S : J → Set)
+              (PI : {j : J} → S j → I → Set)
+              (PJ : {j : J} → S j → J → Set) : Set where
+              -- : {j : J} → W (S ◃ PJ) j → I → Set where
+  coinductive
+  constructor copath
+  field
+    head : {!!}
+    tail : {!!}
 
-⟨ν⟩ : Container (I ⊎ J) J → Container I J
-⟨ν⟩ = {!!}
+⟨ν⟩ : {I J : Set} → Container (I ⊎ J) J → Container I J
+⟨ν⟩ {I} {J} (S ◃ P) =
+  let PI : {j : J} → S j → I → Set
+      PI s i = P s (inj₁ i)
+
+      PJ : {j : J} → S j → J → Set
+      PJ s j = P s (inj₂ j)
+
+  in {!M (S ◃ PJ)!} ◃ {!!}
