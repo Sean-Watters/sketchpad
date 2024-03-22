@@ -1,4 +1,4 @@
-{-# OPTIONS --safe --cubical-compatible --guardedness #-}
+{-# OPTIONS --cubical-compatible --sized-types #-}
 
 module Data.Container.Indexed.Fam.Base where
 
@@ -8,6 +8,8 @@ open import Data.Unit
 open import Data.Product
 open import Data.Sum
 
+open import Size
+open import CoData.Sized.Thunk.Indexed
 
 ----------
 -- Base --
@@ -30,21 +32,8 @@ data W {J : Set} (C : Container J J) : J → Set where
 
 
 -- Indexed M-types.
--- Following the standard library, the extension of the container is
--- inlined into the coninductive definition.
--- Niu & Spivak's "Positions and Angles" terminology works a bit better
--- in this presentation than AAG's "Shapes and Positions";
--- In this presentation, we think of our "shapes" as a set of ways to
--- root the tree, and our positions as "directions" in which subtrees
--- extend.
--- Honestly, this way of thinking was more instructive to me than the
--- traditional setup of ⟦_⟧ and W above.
-record M {J : Set} (C : Container J J) : Set where
-  coinductive
-  constructor inf
-  field
-    root   : (j : J) → Shape C j -- Choose a shape to root the tree with...
-    branch : ∀ {j} → Position C (root j) j → M C -- Then for every position, we have a further subtree
+data M {J : Set} (C : Container J J) (κ : Size) : J → Set where
+  inf :  ∀ {j} → ⟦ C ⟧ {!Thunk ? κ!} j → M C κ j
 
 -- TODO: this is wrong, we really do need *indexed* M-types. See CoVec for an
 -- example of how to do indexed codata
@@ -129,16 +118,16 @@ data Path {I J : Set}
 -----------------------
 
 
-record CoPath {I J : Set}
-              (S : J → Set)
-              (PI : {j : J} → S j → I → Set)
-              (PJ : {j : J} → S j → J → Set) : Set where
-              -- : {j : J} → W (S ◃ PJ) j → I → Set where
-  coinductive
-  constructor copath
-  field
-    head : {!!}
-    tail : {!!}
+-- record CoPath {I J : Set}
+--               (S : J → Set)
+--               (PI : {j : J} → S j → I → Set)
+--               (PJ : {j : J} → S j → J → Set) : Set where
+--               -- : {j : J} → W (S ◃ PJ) j → I → Set where
+--   coinductive
+--   constructor copath
+--   field
+--     head : {!!}
+--     tail : {!!}
 
 ⟨ν⟩ : {I J : Set} → Container (I ⊎ J) J → Container I J
 ⟨ν⟩ {I} {J} (S ◃ P) =
