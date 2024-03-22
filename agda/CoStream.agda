@@ -20,8 +20,7 @@ infixr 10 _∷_
 foo : CoStream ℕ
 foo = 0 ∷ 1 ∷ 2 ∷ {!!}
 
--- If we allow pattern matching on CoStream with the `pattern` keyword,
--- then we can prove that it is uninhabited by induction:
+-- We can prove that the type of costreams is uninhabited by induction:
 empty : ∀ {A} → CoStream A → ⊥
 empty (x ∷ xs) = empty xs
 
