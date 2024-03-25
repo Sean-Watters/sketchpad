@@ -26,8 +26,11 @@ module Identity (ext : Extensionality 0ℓ 0ℓ) where
 
 
 module Constant (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
-  correct = {!!}
+  correct : (X Y : J → Set) → ⟦ ⟨const⟩ X ⟧ Y ≃ᵢ const X Y
+  to (correct X Y) (x , _) = x
+  from (correct X Y) x = x , λ {()}
+  from-to (correct X Y) (x , _) = cong (x ,_) (exti ext (ext λ {()}))
+  to-from (correct X Y) x = refl
 
 module BinaryProduct (ext : Extensionality 0ℓ 0ℓ) where
   correct : (X : J → Set) → {!!}
