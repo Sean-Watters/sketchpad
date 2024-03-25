@@ -10,14 +10,17 @@ module Data.Container.Indexed.Fam where
 -- with an indexed familty of positions.
 
 open import Level using (Level) renaming (suc to lsuc)
+open import Size
+open import Codata.Sized.Thunk using (Thunk; force)
 open import Data.Empty
 open import Data.Unit
 open import Data.Product
 open import Data.Sum
-open import Function using (_∘_)
+open import Function hiding (force)
+open import Relation.Binary.PropositionalEquality using (_≡_)
 
-open import Size
-open import Codata.Sized.Thunk using (Thunk; force)
+open import Axiom.Extensionality.Propositional using (Extensionality)
+open import Relation.Binary.Isomorphism
 
 ----------
 -- Base --
@@ -32,7 +35,6 @@ record Container (I J : Set) : Set₁ where
 open Container
 
 -- The meaning/extension of a container is the indexed functor that it represents.
---
 ⟦_⟧ : {I J : Set} → Container I J → (I → Set) → (J → Set)
 ⟦ S ◃ P ⟧ F j = Σ[ s ∈ S j ] (∀ {i} → P s i → F i)
 
@@ -66,15 +68,15 @@ private
   variable
     I J : Set
 
+-- The Identity Container.
+
+⟨id⟩ : Container J J
+⟨id⟩ = const ⊤ ◃ λ {i} _ j → i ≡ j
+
 -- The Constant Container.
 
 ⟨const⟩ : (J → Set) → Container I J
-⟨const⟩ P = P ◃ λ _ _ → ⊥
-
--- The Identity Container.
---
-⟨id⟩ : Container J J
-⟨id⟩ = ⟨const⟩ (λ _ → ⊤)
+⟨const⟩ P = P ◃ (const (const ⊥))
 
 -- Binary Product.
 -- Shapes are pairs of shapes from the left and right;

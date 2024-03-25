@@ -36,3 +36,7 @@ to (≃-trans p q) = to q ∘ to p
 from (≃-trans p q) = from p ∘ from q
 from-to (≃-trans p q) a = trans (from-to p a) (cong (from p) (from-to q (to p a)))
 to-from (≃-trans p q) a = trans (to-from q a) (cong (to q) (to-from p (from q a)))
+
+
+_≃ᵢ_ : ∀ {n} {I : Set n} → (I → Set n) → (I → Set n) → Set n
+P ≃ᵢ Q = ∀ {i} → P i ≃ Q i
