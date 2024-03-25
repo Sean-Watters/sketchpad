@@ -1,12 +1,20 @@
 {-# OPTIONS --cubical-compatible --sized-types #-}
 
-module Data.Container.Indexed.Fam.Base where
+module Data.Container.Indexed.Fam where
+
+-- The standard library uses so-called "pow-style" indexed
+-- containers, where all the positions ("responses") live 
+-- in one set, and you get a "next" function for picking out
+-- their indices. This makes taking fixed points much harder, so
+-- we instead use the "fam-style" presentation of Altenkirch et al,
+-- with an indexed familty of positions.
 
 open import Level using (Level) renaming (suc to lsuc)
 open import Data.Empty
 open import Data.Unit
 open import Data.Product
 open import Data.Sum
+open import Function using (_∘_)
 
 open import Size
 open import Codata.Sized.Thunk using (Thunk; force)
@@ -23,18 +31,32 @@ record Container (I J : Set) : Set₁ where
     Position : {j : J} → Shape j → I → Set
 open Container
 
+-- The meaning/extension of a container is the indexed functor that it represents.
+--
 ⟦_⟧ : {I J : Set} → Container I J → (I → Set) → (J → Set)
 ⟦ S ◃ P ⟧ F j = Σ[ s ∈ S j ] (∀ {i} → P s i → F i)
 
--- Indexed W-types for them.
+-- Indexed W-types. AKA how to generate families of inductive data types
+-- from indexed containers.
+-- W-types are trees with node arity given by the set of shapes, and
 data W {J : Set} (C : Container J J) : J → Set where
   sup : ∀ {j} → ⟦ C ⟧ (W C) j → W C j
 
 
 -- Indexed M-types.
+-- Dual to W-types; so this is the way to generate families of
+-- coinductive codata types from indexed containers.
+-- In general we get possibly-infinite trees.
 data M {J : Set} (C : Container J J) (κ : Size) : J → Set where
   inf :  ∀ {j} → ⟦ C ⟧ (λ j' → Thunk (λ α → M C α j) κ) j → M C κ j
 
+
+------------------------
+-- Functoriality in I --
+------------------------
+
+⟨map⟩ : {I I' J : Set} → (I' → I) → Container I J → Container I' J
+⟨map⟩ f (S ◃ P) = S ◃ (λ s i' → P s (f i'))
 
 -----------------
 -- Combinators --
@@ -44,15 +66,15 @@ private
   variable
     I J : Set
 
--- The Identity Container.
-
-⟨id⟩ : Container J J
-⟨id⟩ = (λ _ → ⊤) ◃ λ _ _ → ⊥
-
 -- The Constant Container.
 
 ⟨const⟩ : (J → Set) → Container I J
 ⟨const⟩ P = P ◃ λ _ _ → ⊥
+
+-- The Identity Container.
+--
+⟨id⟩ : Container J J
+⟨id⟩ = ⟨const⟩ (λ _ → ⊤)
 
 -- Binary Product.
 -- Shapes are pairs of shapes from the left and right;
@@ -63,11 +85,17 @@ _⟨×⟩_ : Container I J → Container I J → Container I J
                     ◃ (λ x i → (P (proj₁ x) i) ⊎ (Q (proj₂ x) i))
 
 -- Indexed Product.
--- Generalisation of binary product to index sets other than 𝟚.
+-- Generalisation of binary product to indexing sets other than Bool.
+-- And in fact, to indexing sets which are dependent on J.
 
-⟨Π⟩ : {X : Set} → (X → Container I J) → Container I J
-⟨Π⟩ {X = X} P = (λ j → (x : X) → Shape (P x) j)
-              ◃ (λ Q i → Σ[ x ∈ X ] Position (P x) (Q x) i )
+⟨Π⟩ : {X : J → Set} → (∀ {j} → X j → Container I J) → Container I J
+⟨Π⟩ {X = X} P = (λ j → (x : X j) → Shape (P x) j)
+              ◃ (λ {j} Q i → Σ[ x ∈ X j ] Position (P x) (Q x) i )
+
+-- The version where the product is indexed by a simple type X
+-- ⟨Π⟩ : {X : Set} → (X → Container I J) → Container I J
+-- ⟨Π⟩ {X = X} P = (λ j → (x : X) → Shape (P x) j)
+--               ◃ (λ Q i → Σ[ x ∈ X ] Position (P x) (Q x) i )
 
 -- Binary Sum.
 -- Shapes are either a shape from the left or right.
@@ -78,11 +106,18 @@ _⟨+⟩_ : Container I J → Container I J → Container I J
                     ◃ [ P , Q ]
 
 -- Indexed Sum.
--- Generalisation of binary sum to index sets other than 𝟚.
+-- Generalisation of binary sum to arbirary indexing sets (possibly
+-- dependent on J)
 
-⟨Σ⟩ : {X : Set} → (X → Container I J) → Container I J
-⟨Σ⟩ {X = X} P = (λ j → Σ[ x ∈ X ] Shape (P x) j)
+
+⟨Σ⟩ : {X : J → Set} → (∀ {j} → X j → Container I J) → Container I J
+⟨Σ⟩ {X = X} P = (λ j → Σ[ x ∈ X j ] Shape (P x) j)
               ◃ (λ { (x , s) i → Position (P x) s i })
+
+-- The version where X is a simple type
+-- ⟨Σ⟩ : {X : Set} → (X → Container I J) → Container I J
+-- ⟨Σ⟩ {X = X} P = (λ j → Σ[ x ∈ X ] Shape (P x) j)
+--               ◃ (λ { (x , s) i → Position (P x) s i })
 
 
 --------------------
