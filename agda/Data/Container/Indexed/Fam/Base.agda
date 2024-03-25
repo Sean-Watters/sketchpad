@@ -9,7 +9,7 @@ open import Data.Product
 open import Data.Sum
 
 open import Size
-open import CoData.Sized.Thunk.Indexed
+open import Codata.Sized.Thunk using (Thunk; force)
 
 ----------
 -- Base --
@@ -33,10 +33,7 @@ data W {J : Set} (C : Container J J) : J → Set where
 
 -- Indexed M-types.
 data M {J : Set} (C : Container J J) (κ : Size) : J → Set where
-  inf :  ∀ {j} → ⟦ C ⟧ {!Thunk ? κ!} j → M C κ j
-
--- TODO: this is wrong, we really do need *indexed* M-types. See CoVec for an
--- example of how to do indexed codata
+  inf :  ∀ {j} → ⟦ C ⟧ (λ j' → Thunk (λ α → M C α j) κ) j → M C κ j
 
 
 -----------------
@@ -117,17 +114,17 @@ data Path {I J : Set}
 -- Greatest Fixpoint --
 -----------------------
 
-
--- record CoPath {I J : Set}
---               (S : J → Set)
---               (PI : {j : J} → S j → I → Set)
---               (PJ : {j : J} → S j → J → Set) : Set where
---               -- : {j : J} → W (S ◃ PJ) j → I → Set where
---   coinductive
---   constructor copath
---   field
---     head : {!!}
---     tail : {!!}
+-- M-types are possibly infinite trees, so paths through them are co-lists
+data CoPath {I J : Set}
+            (S : J → Set)
+            (PI : {j : J} → S j → I → Set)
+            (PJ : {j : J} → S j → J → Set)
+            (κ : Size)
+            : {j : J} → M (S ◃ PJ) κ j → I → Set where
+  copath : {j : J} {s : S j} {f : {j' : J} → PJ s j' → Thunk (λ α → M (S ◃ PJ) α j) ∞} {i : I}
+         → PI s i
+         ⊎ (Σ[ j' ∈ J ] Σ[ p ∈ PJ s j' ] CoPath S PI PJ κ (force (f p)) i)
+         → CoPath S PI PJ κ (inf (s , f)) i
 
 ⟨ν⟩ : {I J : Set} → Container (I ⊎ J) J → Container I J
 ⟨ν⟩ {I} {J} (S ◃ P) =
@@ -137,4 +134,4 @@ data Path {I J : Set}
       PJ : {j : J} → S j → J → Set
       PJ s j = P s (inj₂ j)
 
-  in {!M (S ◃ PJ)!} ◃ {!!}
+  in M (S ◃ PJ) ∞ ◃ CoPath S PI PJ ∞
