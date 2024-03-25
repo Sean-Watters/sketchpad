@@ -7,6 +7,7 @@ open import Level
 open import Axiom.Extensionality.Propositional using (Extensionality) renaming (implicit-extensionality to exti)
 open import Data.Container.Indexed.Fam
 open import Data.Product
+open import Data.Sum
 open import Data.Unit
 open import Function
 open import Relation.Binary.Isomorphism
@@ -33,25 +34,36 @@ module Constant (ext : Extensionality 0ℓ 0ℓ) where
   to-from (correct X Y) x = refl
 
 module BinaryProduct (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
-  correct = {!!}
+  correct : (X : I → Set) → (C D : Container I J)
+          → ⟦ C ⟨×⟩ D ⟧ X ≃ᵢ (λ j → ⟦ C ⟧ X j × ⟦ D ⟧ X j)
+  to (correct X C D) x = {!!}
+  from (correct X C D) = {!!}
+  from-to (correct X C D) = {!!}
+  to-from (correct X C D) = {!!}
 
 module IndexedProduct (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
+  correct : (X : I → Set) → {!!}
   correct = {!!}
 
 module BinarySum (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
+  correct : (X : I → Set) → (C D : Container I J)
+          → ⟦ C ⟨+⟩ D ⟧ X ≃ᵢ (λ j → ⟦ C ⟧ X j ⊎ ⟦ D ⟧ X j)
   correct = {!!}
 
 module IndexedSum (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
+  correct : (X : I → Set) → {!!}
   correct = {!!}
 
+
+-- The correctness proofs for the fixpoints are more involved, and boil
+-- down to proving that these combinators are the initial algebra and
+-- terminal coalgebra of containers. The actual proof is due to Altenkirch
+-- et al, c.f. "Indexed Containers".
+
 module LeastFixedPoint (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
+  correct : (X : I → Set) → {!!}
   correct = {!!}
 
 module GreatestFixedPoint (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : J → Set) → {!!}
+  correct : (X : I → Set) → {!!}
   correct = {!!}
