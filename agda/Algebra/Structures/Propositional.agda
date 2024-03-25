@@ -4,6 +4,7 @@ open import Relation.Binary hiding (Irrelevant)
 
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Relation.Binary.Structures
+open import Relation.Binary.Properties.StrictPartialOrder using (>-strictPartialOrder)
 open import Relation.Nullary
 open import Data.Empty
 open import Data.Sum
@@ -24,13 +25,18 @@ record IsPropStrictTotalOrder
   open IsStrictTotalOrder isSTO public
 
   flip-PSTO : IsPropStrictTotalOrder _≈_ (flip _<_)
-  IsStrictTotalOrder.isEquivalence (isSTO flip-PSTO) = isEquivalence
-  IsStrictTotalOrder.trans (isSTO flip-PSTO) = flip trans
+  IsStrictTotalOrder.isStrictPartialOrder (isSTO flip-PSTO)
+    = StrictPartialOrder.isStrictPartialOrder $ >-strictPartialOrder (record
+                                                                        { Carrier = S
+                                                                        ; _≈_ = _≈_
+                                                                        ; _<_ = _<_
+                                                                        ; isStrictPartialOrder = isStrictPartialOrder
+                                                                        })
   IsStrictTotalOrder.compare (isSTO flip-PSTO) x y with compare x y
   ... | tri< a ¬b ¬c = tri> ¬c ¬b a
   ... | tri≈ ¬a b ¬c = tri≈ ¬c b ¬a
   ... | tri> ¬a ¬b c = tri< c ¬b ¬a
-  ≈-prop flip-PSTO = ≈-prop 
+  ≈-prop flip-PSTO = ≈-prop
   <-prop flip-PSTO = <-prop
 
 
