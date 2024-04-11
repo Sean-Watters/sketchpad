@@ -1,4 +1,4 @@
-{-# OPTIONS --sized-types #-}
+{-# OPTIONS --safe --cubical-compatible #-}
 
 module Data.Container.Indexed.Fam.Correctness where
 
@@ -89,6 +89,4 @@ module LeastFixedPoint (ext : Extensionality 0ℓ 0ℓ) where
   correct : (X : I → Set) → {!!}
   correct = {!!}
 
-module GreatestFixedPoint (ext : Extensionality 0ℓ 0ℓ) where
-  correct : (X : I → Set) → {!!}
-  correct = {!!}
+-- For correctness of greatest fixed point see ...Fam.SizedTypes.
