@@ -4,10 +4,21 @@ module Data.Fin.MoreProps where
 open import Data.Nat hiding (_>_) renaming (_<_ to _<ℕ_)
 open import Data.Fin
 open import Data.Fin.Properties
+open import Data.Unit
+open import Data.Empty
 open import Relation.Binary.PropositionalEquality
 open import Relation.Binary.PropositionalEquality.WithK
 open import Algebra.Structures.Propositional
 open import Function
+
+IsMax : ∀ {n} → Fin n → Set
+IsMax {(suc zero)} zero = ⊤
+IsMax {(suc (suc _))} zero = ⊥
+IsMax (suc x) = IsMax x
+
+fromℕ-ismax : ∀ n → IsMax (fromℕ n)
+fromℕ-ismax zero = tt
+fromℕ-ismax (suc n) = fromℕ-ismax n
 
 <-isPropStrictTotalOrder : ∀ n → IsPropStrictTotalOrder (_≡_ {A = Fin n}) _<_
 IsPropStrictTotalOrder.isSTO (<-isPropStrictTotalOrder n) = <-isStrictTotalOrder
