@@ -107,6 +107,7 @@ record Always {X : Set} (P : Stream X → Set) (xs : Stream X) : Set where
     forever : Always P (tail xs)
 open Always
 
+
 -- If we know something is Eventually true, we can look ahead to the next witness.
 next : {X : Set} {P : X → Set} {xs : Stream X} → Eventually P xs → X
 next {xs = xs} (here px) = head xs
@@ -115,6 +116,63 @@ next {xs = xs} (there ¬px pxs) = next pxs
 next-IsP : {X : Set} {P : X → Set} {xs : Stream X} (pxs : Eventually P xs) → P (next pxs)
 next-IsP (here px) = px
 next-IsP (there ¬px pxs) = next-IsP pxs
+
+-- Evidence that a particular X is the next witness to an Eventually.
+-- This is, by no coincidece, the graph of `next`. It's useful for avoiding green slime.
+data Next {X : Set} {P : X → Set} {xs : Stream X} : Eventually P xs → {x : X} → P x → Set where
+  here : (px : P (head xs)) → Next (here px) px
+  there : {x : X} {nx : P x} (¬px : ¬ (P (head xs))) (pxs : Eventually P (tail xs)) → Next pxs nx → Next (there ¬px pxs) nx
+
+-- `next` really does give the Next. This is basically true by definition.
+next-Next : {X : Set} {P : X → Set} {xs : Stream X} → (pxs : Eventually P xs) → Next pxs (next-IsP pxs)
+next-Next (here px) = here px
+next-Next (there ¬px pxs) = there ¬px pxs (next-Next pxs)
+
+-- Next is computable, obviously via the above `next` function
+next-computable : {X : Set} {P : X → Set} {xs : Stream X} → (pxs : Eventually P xs) → Σ[ x ∈ X ] Σ[ px ∈ P x ] Next pxs px
+next-computable pxs = next pxs , next-IsP pxs , next-Next pxs
+
+-- Part 1
+-- If we have a Next, then it points to the *unique* next element.
+next-unique : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x x' : X} {px : P x} {px' : P x'}
+            → Next pxs px → Next pxs px' → x ≡ x'
+next-unique (here p) (here q) = refl
+next-unique (there ¬px pxs n1) (there .¬px .pxs n2) = next-unique n1 n2
+
+-- Part 2!
+-- The proof P x is also unique.
+next-unique-proof : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x : X} {px px' : P x}
+                  → Next pxs px → Next pxs px' → px ≡ px'
+next-unique-proof (here p) (here q) = refl
+next-unique-proof (there ¬px pxs n1) (there .¬px .pxs n2) = next-unique-proof n1 n2
+
+-- Part 3!
+-- Next itself is propositional.
+Next-propositional : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x : X} {px : P x}
+                 → (n1 n2 : Next pxs px) → n1 ≡ n2
+Next-propositional (here p) (here q) = refl
+Next-propositional (there ¬px pxs n1) (there .¬px .pxs n2) = cong (there ¬px pxs) (Next-propositional n1 n2)
+
+-- What does it mean for two streams to have the same next element?
+record EqNexts {X : Set} {P : X → Set} {xs ys : Stream X} (pxs : Eventually P xs) (pys : Eventually P ys) : Set where
+  constructor [_,_,_]
+  field
+    {x y} : X
+    {px} : P x
+    {py} : P y
+    nx : Next pxs px         -- x is the next P in xs...
+    ny : Next pys py         -- y is the next P in ys...
+    eq : x ≡ y               -- and x=y...
+    eq' : subst P eq px ≡ py -- and px=py.
+
+  eq-next-elem : next pxs ≡ next pys
+  eq-next-elem = trans (sym $ next-unique nx (next-Next pxs)) (trans eq (next-unique ny (next-Next pys)))
+
+  eq-next-proof : subst P eq-next-elem (next-IsP pxs) ≡ next-IsP pys
+  eq-next-proof = {!!}
+
+  eq-next : _≡_ {A = Σ[ x ∈ X ] P x} (next pxs , next-IsP pxs) (next pys , next-IsP pys)
+  eq-next = dcong₂ _,_ eq-next-elem eq-next-proof
 
 -- If we know that there are infinitely many P's, we can filter them out into a new stream.
 filter' : {X : Set} {P : X → Set} → {xs : Stream X} → (pxs : Always (Eventually P) xs) → Stream (Σ[ x ∈ X ] (P x))
@@ -125,8 +183,8 @@ map : {X Y : Set} → (X → Y) → Stream X → Stream Y
 head (map f xs) = f (head xs)
 tail (map f xs) = map f (tail xs)
 
-filter : {X : Set} {P : X → Set} → {xs : Stream X} → Always (Eventually P) xs → Stream X
-filter = map proj₁ ∘ filter'
+-- filter : {X : Set} {P : X → Set} → {xs : Stream X} → Always (Eventually P) xs → Stream X
+-- filter = map proj₁ ∘ filter'
 
 
 -----------------------------------
@@ -153,10 +211,10 @@ record PointwiseAlways {X : Set} {P : Stream X → Set} (_~_ : ∀ {xs ys} → P
     forever : PointwiseAlways _~_ (forever pxs) (forever pys)
 open PointwiseAlways
 
-
--- as long as we accept some ugly (but hopefully easily dischargable) substs, we can say what it means for always proofs on possibly different streams to be bisimilar
-WBisimilar : ∀ {X} {xs ys : Stream X} (P : Stream X → Set) → Always P xs → Always P ys → Set
-WBisimilar P pxs pys = PointwiseAlways (λ {xs} {ys} pxs pys → Σ[ eqL ∈ xs ≡ ys ] (subst P eqL pxs) ≡ pys) pxs pys
+-- At every step, the two streams must b equal on their next P's.
+-- Ezra says this is weak bisimilarity.
+WBisimilar : ∀ {X} {xs ys : Stream X} (P : X → Set) → Always (Eventually P) xs → Always (Eventually P) ys → Set
+WBisimilar P = PointwiseAlways EqNexts
 
 -- -- Bisimilarity of rational streams is bisimilarity of their unfoldings
 -- BisimilarR' : ∀ {X i j} → Ctx X i → RStream X i → Ctx X j → RStream X j → Set
@@ -239,13 +297,12 @@ next-eq (there ¬px pxs) (there ¬py pys) Z = next-eq pxs pys (tail Z)
 -- head (filter-bisim {pxs = pxs} {pys} Z) = dcong₂ _,_ (next-eq (now pxs) (now pys) Z) {!!}
 -- tail (filter-bisim {pxs = pxs} {pys} Z) = filter-bisim (tail Z)
 
--- We don't need to insist on xs~ys - instead, we can just ask for "bisimilarity" of the AE proofs
-filter-bisim : {X : Set} {P : X → Set} → {xs ys : Stream X} → {pxs : Always (Eventually P) xs} {pys : Always (Eventually P) ys}
-             → WBisimilar (Eventually P) pxs pys
+-- We don't need to insist on xs~ys - instead, we can just ask for weak bisimilarity of the AE proofs
+filter-wbisim : {X : Set} {P : X → Set} → {xs ys : Stream X} → {pxs : Always (Eventually P) xs} {pys : Always (Eventually P) ys}
+             → WBisimilar P pxs pys
              → filter' pxs ~ filter' pys
-head (filter-bisim {X} {P} {xs} {ys} {pxs} {pys} Z) with now pys | now Z
-... | ._ | refl , refl = refl
-tail (filter-bisim Z) = filter-bisim (forever Z)
+head (filter-wbisim {X} {P} {xs} {ys} {pxs} {pys} Z) = EqNexts.eq-next (now Z)
+tail (filter-wbisim {X} {P} {xs} {ys} {pxs} {pys} Z) = filter-wbisim (forever Z)
 
 ---------------
 -- Unfolding --
@@ -254,6 +311,7 @@ tail (filter-bisim Z) = filter-bisim (forever Z)
 --  It'd be great to define unfolding like so, except the termination checker
 --  rejects it for lack of guardedness:
 private module _ where
+  -- Inside a private submodule so we don't accidentally try to use it
   {-# TERMINATING #-} -- uncomment if ye dare
   unfold-i-wish : ∀ {X n} → (Γ : Ctx X n) → RStream X n → Stream X
   unfold-i-wish Γ (loop x) = unfold-i-wish Γ (lookup Γ x)
@@ -285,8 +343,8 @@ forever (unfold-productive Γ (loop x)) = unfold-productive _ _
 forever (unfold-productive Γ (cons x xs)) = unfold-productive _ _
 
 unfold-wbisim : ∀ {X n} (Γ : Ctx X n) (x : Fin n)
-              → WBisimilar (Eventually Is-just) (unfold-productive Γ (loop x)) (unfold-productive Γ (lookup Γ x))
-now (unfold-wbisim Γ x) = {!false :(!} , {!!}
+              → WBisimilar Is-just (unfold-productive Γ (loop x)) (unfold-productive Γ (lookup Γ x))
+now (unfold-wbisim Γ x) = {!!}
 forever (unfold-wbisim Γ x) = {!!}
 
 -- Put the pieces together to get the real unfolding.
@@ -297,10 +355,10 @@ opaque
   unfold Γ xs = remove-dummies (unfold-productive Γ xs)
 
   unfold-loop' : ∀ {X n} → (Γ : Ctx X n) → (x : Fin n) → (unfold Γ (loop x)) ~ (unfold Γ (lookup Γ x))
-  unfold-loop' Γ x = map-bisim (filter-bisim (unfold-wbisim Γ x))
+  unfold-loop' Γ x = map-bisim (filter-wbisim (unfold-wbisim Γ x))
 
   unfold-loop : ∀ {X n} → (Γ : Ctx X n) → (x : Fin n) → unfold Γ (loop x) ≡ unfold Γ (lookup Γ x)
-  unfold-loop = {!!}
+  unfold-loop = {!!} -- via bisim extensionality
 
   unfold-cons : ∀ {X n} → (Γ : Ctx X n) → (x : X) (xs : RStream X (suc n)) → unfold Γ (cons x xs) ≡ x ∷ (unfold (Γ -, cons x xs) xs)
   unfold-cons = {!!}
