@@ -12,6 +12,7 @@ open import Data.Maybe hiding (map)
 open import Data.Maybe.Relation.Unary.Any using (just)
 -- open import Data.Vec as V using (Vec; []; _∷_)
 open import Data.List as L using (List; []; _∷_)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Vec.Snoc as V> using (Cev; []; _-,_)
 open import Data.Vec as V< using (Vec; []) renaming (_∷_ to _,-_; _++_ to _<<<_)
 open import Data.Vec.Util as V<
@@ -141,50 +142,88 @@ next-unique (there ¬px pxs n1) (there .¬px .pxs n2) = next-unique n1 n2
 
 -- Part 2!
 -- The proof P x is also unique.
-next-unique-proof : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x : X} {px px' : P x}
-                  → Next pxs px → Next pxs px' → px ≡ px'
-next-unique-proof (here p) (here q) = refl
-next-unique-proof (there ¬px pxs n1) (there .¬px .pxs n2) = next-unique-proof n1 n2
+next-unique-proof : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x y : X} {px : P x} {py : P y}
+                  → (eq : x ≡ y)
+                  → Next pxs px → Next pxs py
+                  → subst P eq px ≡ py
+next-unique-proof refl (here p) (here q) = refl
+next-unique-proof refl (there ¬px pxs n1) (there .¬px .pxs n2) = next-unique-proof refl n1 n2
 
 -- Part 3!
 -- Next itself is propositional.
+-- NB: If I ever need to *use* this, it'll probably need to be changed to not insist on definitional equality of x and px.
 Next-propositional : {X : Set} {P : X → Set} {xs : Stream X} {pxs : Eventually P xs} {x : X} {px : P x}
-                 → (n1 n2 : Next pxs px) → n1 ≡ n2
+                   → (n1 n2 : Next pxs px) → n1 ≡ n2
 Next-propositional (here p) (here q) = refl
 Next-propositional (there ¬px pxs n1) (there .¬px .pxs n2) = cong (there ¬px pxs) (Next-propositional n1 n2)
 
+-- The cube contracts
+subst-lemma : {X : Set} {P : X → Set} {x y nx ny : X}
+            → {px : P x}  {py : P y} {pnx : P nx} {pny : P ny}
+            → (x≡y : x ≡ y) (nx≡x : nx ≡ x) (y≡ny : y ≡ ny)
+            → (px≡py : subst P x≡y px ≡ py) (pnx≡px : subst P nx≡x pnx ≡ px) (py≡pny : subst P y≡ny py ≡ pny)
+            → subst P y≡ny (subst P x≡y (subst P nx≡x pnx)) ≡ pny
+subst-lemma refl refl refl refl refl refl = refl
+
+
 -- What does it mean for two streams to have the same next element?
 record EqNexts {X : Set} {P : X → Set} {xs ys : Stream X} (pxs : Eventually P xs) (pys : Eventually P ys) : Set where
-  constructor [_,_,_]
+  constructor [_,_,_,_]
   field
     {x y} : X
     {px} : P x
     {py} : P y
     nx : Next pxs px         -- x is the next P in xs...
     ny : Next pys py         -- y is the next P in ys...
-    eq : x ≡ y               -- and x=y...
-    eq' : subst P eq px ≡ py -- and px=py.
+    x≡y : x ≡ y               -- and x=y...
+    px≡py : subst P x≡y px ≡ py -- and px=py.
+
+  nextx≡x : next pxs ≡ x
+  nextx≡x = sym $ next-unique nx (next-Next pxs)
+
+  y≡nexty : y ≡ next pys
+  y≡nexty = next-unique ny (next-Next pys)
 
   eq-next-elem : next pxs ≡ next pys
-  eq-next-elem = trans (sym $ next-unique nx (next-Next pxs)) (trans eq (next-unique ny (next-Next pys)))
+  eq-next-elem = trans nextx≡x (trans x≡y y≡nexty)
+
+  eq-next-proof' : subst P y≡nexty (subst P x≡y (subst P nextx≡x (next-IsP pxs)))
+                 ≡ next-IsP pys
+  eq-next-proof' = subst-lemma x≡y nextx≡x y≡nexty px≡py (next-unique-proof nextx≡x (next-Next pxs) nx) (next-unique-proof y≡nexty ny (next-Next pys))
+
 
   eq-next-proof : subst P eq-next-elem (next-IsP pxs) ≡ next-IsP pys
-  eq-next-proof = {!!}
+  eq-next-proof =
+    begin
+      subst P eq-next-elem
+              (next-IsP pxs)
+    ≡⟨ sym $ subst-subst nextx≡x ⟩
+      subst P (trans x≡y y≡nexty)
+              (subst P nextx≡x (next-IsP pxs))
+    ≡⟨ (sym $ subst-subst x≡y) ⟩
+      subst P y≡nexty
+              (subst P x≡y
+                       (subst P nextx≡x (next-IsP pxs)))
+    ≡⟨ eq-next-proof' ⟩
+      next-IsP pys
+    ∎ where open ≡-Reasoning
 
+  -- After just a little subst hell, we get that the data in this record is indeed sufficient to prove equality between the
+  -- pairs that filter gives us below.
   eq-next : _≡_ {A = Σ[ x ∈ X ] P x} (next pxs , next-IsP pxs) (next pys , next-IsP pys)
   eq-next = dcong₂ _,_ eq-next-elem eq-next-proof
 
 -- If we know that there are infinitely many P's, we can filter them out into a new stream.
-filter' : {X : Set} {P : X → Set} → {xs : Stream X} → (pxs : Always (Eventually P) xs) → Stream (Σ[ x ∈ X ] (P x))
-head (filter' pxs) = next (now pxs) , next-IsP (now pxs)
-tail (filter' pxs) = filter' (forever pxs)
+filter : {X : Set} {P : X → Set} → {xs : Stream X} → (pxs : Always (Eventually P) xs) → Stream (Σ[ x ∈ X ] (P x))
+head (filter pxs) = next (now pxs) , next-IsP (now pxs)
+tail (filter pxs) = filter (forever pxs)
 
 map : {X Y : Set} → (X → Y) → Stream X → Stream Y
 head (map f xs) = f (head xs)
 tail (map f xs) = map f (tail xs)
 
 -- filter : {X : Set} {P : X → Set} → {xs : Stream X} → Always (Eventually P) xs → Stream X
--- filter = map proj₁ ∘ filter'
+-- filter = map proj₁ ∘ filter
 
 
 -----------------------------------
@@ -216,12 +255,18 @@ open PointwiseAlways
 WBisimilar : ∀ {X} {xs ys : Stream X} (P : X → Set) → Always (Eventually P) xs → Always (Eventually P) ys → Set
 WBisimilar P = PointwiseAlways EqNexts
 
--- -- Bisimilarity of rational streams is bisimilarity of their unfoldings
--- BisimilarR' : ∀ {X i j} → Ctx X i → RStream X i → Ctx X j → RStream X j → Set
--- BisimilarR' Γ xs Δ ys = Bisimilar (unfold Γ xs) (unfold Δ ys)
+-- Weak bisimilarity is still too strong for some proofs, particularly proving bisimilarity of filters.
+-- The problem is that EqNext is not preserved by moving through both streams in lockstep.
+-- Instead, lets define what it means for a stream of maybes to be an "thinning" of another stream.
+-- (terminology inspired by McBride's work, though this is a butchery of the original meaning)
+record Thinω {X : Set} (P : X → Set) (xs : Stream X) (θxs : Stream (Maybe X)) : Set where
+  coinductive
+  field
+    head : (P (head xs) -> Σ[ x ∈ X ] (just x ≡ head θxs) × (P x)) -- if the head is p, then it must be related to a just which also P
+         × (¬ (P (head xs)) → nothing ≡ head θxs)                  -- if not, then it must be related to a dummy
+    tail : Thinω P (tail xs) (tail θxs)
+open Thinω
 
--- BisimilarR : ∀ {X} → RStream X 0 → RStream X 0 → Set
--- BisimilarR xs ys = BisimilarR' [] xs [] ys
 
 -- Equality implies bisimilarity. But not vice versa (in MLTT)!
 ≡→~ : ∀ {X} → {xs ys : Stream X} → xs ≡ ys → xs ~ ys
@@ -244,7 +289,7 @@ tabulate-lookup : ∀ {X} → (xs : Stream X) → (tabulate (lookup-stream xs)) 
 head (tabulate-lookup xs) = refl
 tail (tabulate-lookup xs) = tabulate-lookup (tail xs)
 
--- We need funext to ro
+-- We need funext, we can prove the other direction,
 module WithFunext (funext : ∀ {a b} → Extensionality a b) where
 
   lookup-tabulate : ∀ {X} → (f : ℕ → X) → f ≡ lookup-stream (tabulate f)
@@ -281,28 +326,62 @@ map-bisim : ∀ {X Y} {xs ys : Stream X} → {f : X → Y} → xs ~ ys → (map 
 head (map-bisim {f = f} Z) = cong f (head Z)
 tail (map-bisim Z) = map-bisim (tail Z)
 
--- If 2 streams are bisimilar, next finds the same thing in both
-next-eq : {X : Set} {P : X → Set} {xs ys : Stream X} → (pxs : Eventually P xs) (pys : Eventually P ys)
-        → xs ~ ys
-        → next pxs ≡ next pys
-next-eq (here px) (here py) Z = head Z
-next-eq {P = P} (here px) (there ¬py pys) Z = ⊥-elim (¬py (subst P (head Z) px))
-next-eq {P = P} (there ¬px pxs) (here py) Z = ⊥-elim (¬px (subst P (sym $ head Z) py))
-next-eq (there ¬px pxs) (there ¬py pys) Z = next-eq pxs pys (tail Z)
+-- -- If 2 streams are bisimilar, next finds the same thing in both
+-- next-eq : {X : Set} {P : X → Set} {xs ys : Stream X} → (pxs : Eventually P xs) (pys : Eventually P ys)
+--         → xs ~ ys
+--         → next pxs ≡ next pys
+-- next-eq (here px) (here py) Z = head Z
+-- next-eq {P = P} (here px) (there ¬py pys) Z = ⊥-elim (¬py (subst P (head Z) px))
+-- next-eq {P = P} (there ¬px pxs) (here py) Z = ⊥-elim (¬px (subst P (sym $ head Z) py))
+-- next-eq (there ¬px pxs) (there ¬py pys) Z = next-eq pxs pys (tail Z)
 
 -- -- This version is too strong to be useful that often, since the input streams won't always be bisimilar, even when the outputs are
 -- filter-bisim : {X : Set} {P : X → Set} → {xs ys : Stream X} → {pxs : Always (Eventually P) xs} {pys : Always (Eventually P) ys}
 --              → xs ~ ys
---              → filter' pxs ~ filter' pys
+--              → filter pxs ~ filter pys
 -- head (filter-bisim {pxs = pxs} {pys} Z) = dcong₂ _,_ (next-eq (now pxs) (now pys) Z) {!!}
 -- tail (filter-bisim {pxs = pxs} {pys} Z) = filter-bisim (tail Z)
 
 -- We don't need to insist on xs~ys - instead, we can just ask for weak bisimilarity of the AE proofs
 filter-wbisim : {X : Set} {P : X → Set} → {xs ys : Stream X} → {pxs : Always (Eventually P) xs} {pys : Always (Eventually P) ys}
              → WBisimilar P pxs pys
-             → filter' pxs ~ filter' pys
+             → filter pxs ~ filter pys
 head (filter-wbisim {X} {P} {xs} {ys} {pxs} {pys} Z) = EqNexts.eq-next (now Z)
 tail (filter-wbisim {X} {P} {xs} {ys} {pxs} {pys} Z) = filter-wbisim (forever Z)
+
+-- Embedding a predicate on X into Maybe X by leaving it the same on justs, and false on nothings.
+data Pad {X : Set} (P : X → Set) : Maybe X → Set where
+  embed : ∀ {x} → P x → Pad P (just x)
+
+record EqNextPadded {X : Set} {P : X → Set} {xs : Stream X} {ys : Stream (Maybe X)} (pxs : Eventually P xs) (pys : Eventually (Pad P) ys) : Set where
+  constructor [_,_,_,_]
+  field
+    {x} : X
+    {y} : Maybe X
+    {px} : P x
+    {py} : Pad P y
+    nx : Next pxs px         -- x is the next P in xs...
+    ny : Next pys py         -- y is the next P in ys...
+    x≡y : just x ≡ y               -- and x=y...
+    px≡py : subst (Pad P) x≡y (embed px) ≡ py -- and px=py.
+
+pad-eqnext : {X : Set} {P : X → Set} {xs : Stream X} {θxs : Stream (Maybe X)}
+           → (pxs : Eventually P xs)
+           → (pθxs : Eventually (Pad P) θxs)
+           → Thinω P xs θxs
+           → EqNextPadded pxs pθxs
+pad-eqnext pxs pθxs x with head x
+... | ifP , if¬P = {!!}
+
+filter-thinω : {X : Set} {P : X → Set} → {xs ys : Stream X}
+             → {pxs : Always (Eventually P) xs} {pys : Always (Eventually P) ys}
+             → {xs' ys' : Stream (Maybe X)}
+             → Thinω P xs xs' → Thinω P ys ys'
+             → {pxs' : Always (Eventually (Pad P)) xs'} {pys' : Always (Eventually (Pad P)) ys'}
+             → WBisimilar (Pad P) pxs' pys'
+             → filter pxs ~ filter pys
+head (filter-thinω θ σ Z) = {!EqNexts.eq-next (now Z)!}
+tail (filter-thinω θ σ Z) = {!filter-thinω!}
 
 ---------------
 -- Unfolding --
@@ -329,7 +408,7 @@ tail (unfold' Γ (cons x xs)) = unfold' (Γ -, cons x xs) xs
 -- As long as we can guarantee that we're always
 -- only finitely many steps away from an X, we can remove all the 1's.
 remove-dummies : ∀ {X} → {xs : Stream (Maybe X)} → Always (Eventually Is-just) xs → Stream X
-remove-dummies pxs = map (λ px → to-witness (proj₂ px)) (filter' pxs)
+remove-dummies pxs = map (λ px → to-witness (proj₂ px)) (filter pxs)
 
 unfold-lem : ∀ {X n} → (Γ : Ctx X n) (x : Fin n) → Is-just (head (unfold' Γ (lookup Γ x)))
 unfold-lem Γ x with lookup Γ x | lookup-IsCons Γ x
@@ -342,10 +421,13 @@ now (unfold-productive Γ (cons x xs)) = here (just tt)
 forever (unfold-productive Γ (loop x)) = unfold-productive _ _
 forever (unfold-productive Γ (cons x xs)) = unfold-productive _ _
 
+
+
+-- False! We can't move in lockstep.
 unfold-wbisim : ∀ {X n} (Γ : Ctx X n) (x : Fin n)
               → WBisimilar Is-just (unfold-productive Γ (loop x)) (unfold-productive Γ (lookup Γ x))
 now (unfold-wbisim Γ x) = {!!}
-forever (unfold-wbisim Γ x) = {!!}
+forever (unfold-wbisim Γ x) = {!unfold-wbisim!}
 
 -- Put the pieces together to get the real unfolding.
 -- Except we dont want to reason (or even know) about that roundabout definition, so
